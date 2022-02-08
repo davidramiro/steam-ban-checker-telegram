@@ -1,5 +1,6 @@
 package com.davidjusto.steambancheck.service;
 
+import com.davidjusto.steambancheck.model.SteamAccount;
 import com.davidjusto.steambancheck.model.User;
 import com.davidjusto.steambancheck.repository.UserRepo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,7 @@ public class UserService {
     private final UserRepo userRepo;
 
     @Autowired
-    public UserService(UserRepo userRepo) {
+    public UserService(UserRepo userRepo, SteamService service) {
         this.userRepo = userRepo;
     }
 
@@ -45,6 +46,14 @@ public class UserService {
 
     public boolean checkIfUserExists(Long id) {
         return this.userRepo.existsByTelegramIdEquals(id);
+    }
+
+    public void removeAccountFromUser(Long userId, SteamAccount account) {
+        User user = this.getUserById(userId);
+        if (user != null) {
+            user.removeWatchedAccount(account);
+        }
+        this.userRepo.save(user);
     }
 
 }

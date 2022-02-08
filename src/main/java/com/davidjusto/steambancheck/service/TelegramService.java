@@ -27,6 +27,7 @@ import java.util.List;
 public class TelegramService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TelegramService.class);
+    private static final String DATE_FORMAT = "dd.MM.yyyy";
 
     private final TelegramBot bot;
     private final SteamService steamService;
@@ -48,6 +49,9 @@ public class TelegramService {
         bot.setUpdatesListener(updateList -> {
 
             for (Update update : updateList) {
+                if (update.message() == null) {
+                    return update.updateId();
+                }
                 long chatId = update.message().chat().id();
                 String command = update.message().text();
 
@@ -65,7 +69,6 @@ public class TelegramService {
                 } else {
                     this.handleSteamId(command, user);
                 }
-
             }
 
             return UpdatesListener.CONFIRMED_UPDATES_ALL;
@@ -73,7 +76,6 @@ public class TelegramService {
     }
 
     private void handleSteamId(String steamIdInput, User user) {
-        // must be a Steam account then
         long steamId = SteamApiUtils.parseSteamIdFromInput(steamIdInput, this.steamApiKey);
         if (steamId == -1L) {
             bot.execute(new SendMessage(user.getTelegramId(), "Could not parse steam account from your input."));
@@ -99,13 +101,64 @@ public class TelegramService {
 
         if (command.toLowerCase().contains("help")) {
             bot.execute(new SendMessage(user.getTelegramId(), "Add Steam accounts by either submitting the SteamID64" +
-                    "(Example: 76561197960287930) or the full Steam profile URL.\n"));
+                    "(Example: 76561197960287930) or the full Steam profile URL.\n\n" +
+                    "List watched Steam accounts by using /showtracked\n\n" +
+                    "Remove tracked Steam accounts by using /remove <SteamID64/Profile URL>"));
+            return;
+        }
+
+        if (command.toLowerCase().contains("showtracked")) {
+            this.showTrackedAccountsForUser(user);
+            return;
+        }
+
+        if (command.toLowerCase().contains("remove")) {
+            String[] commandParts = command.split("\\s+");
+            if (commandParts.length != 2) {
+                bot.execute(new SendMessage(user.getTelegramId(), "Invalid input. Please remove Steam accounts " +
+                        "by using /remove <SteamID64/Profile URL>"));
+            } else {
+                Long steamId = SteamApiUtils.parseSteamIdFromInput(commandParts[1], this.steamApiKey);
+                if (steamId == -1L) {
+                    bot.execute(new SendMessage(user.getTelegramId(), "Could not parse steam account from your input."));
+
+                } else {
+                    this.removeAccountTrackingFromUser(user, steamId);
+                }
+
+            }
+
             return;
         }
 
         bot.execute(new SendMessage(user.getTelegramId(), "Unknown command. " +
                 "Either use /help or send me a Steam account."));
 
+    }
+
+    private void removeAccountTrackingFromUser(User user, Long steamId) {
+        try {
+            this.userService.removeAccountFromUser(user.getId(), this.steamService.getSteamAccountBySteamId(steamId));
+            this.steamService.checkIfOrphanedAndDelete(steamId);
+        } catch (NullPointerException npe) {
+            bot.execute(new SendMessage(user.getTelegramId(), "Error on deletion. " +
+                    "Did you really track this user before?"));
+            return;
+        }
+
+        bot.execute(new SendMessage(user.getTelegramId(), String.format("Account with Steam ID %s " +
+                "successfully removed from your tracked accounts.", steamId)));
+    }
+
+    private void showTrackedAccountsForUser(User user) {
+        user.getWatchedAccounts().forEach(acc -> {
+            String accountInfo = SteamApiUtils.getInfoFromSteamId(acc.getSteamId(), this.steamApiKey);
+            String added = acc.getDateAdded().format(DateTimeFormatter.ofPattern(DATE_FORMAT));
+            String banned = acc.getLastBan() != null ?
+                    acc.getLastBan().format(DateTimeFormatter.ofPattern(DATE_FORMAT)) : "Not banned";
+            bot.execute(new SendMessage(user.getTelegramId(), String.format("%s%nDate added: %s%nBanned: %s",
+                    accountInfo, added, banned)));
+        });
     }
 
     private SteamAccount checkAndAddSteamAccount(long chatId, long steamId) {
@@ -141,8 +194,8 @@ public class TelegramService {
             LOGGER.info("New ban detected for {}.", acc.getSteamId());
             acc.getWatchingUsers().forEach(user -> {
                 LOGGER.info("Notifying Telegram User {} - {}", user.getName(), user.getTelegramId());
-                String addedDate = acc.getDateAdded().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
-                String bannedDate = acc.getLastBan().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+                String addedDate = acc.getDateAdded().format(DateTimeFormatter.ofPattern(DATE_FORMAT));
+                String bannedDate = acc.getLastBan().format(DateTimeFormatter.ofPattern(DATE_FORMAT));
                 String accInfo = SteamApiUtils.getInfoFromSteamId(acc.getSteamId(), this.steamApiKey);
                 bot.execute(new SendMessage(user.getTelegramId(),
                         String.format("New ban detected!%n%s%n%nDate added: %s%nDate banned: %s",

@@ -73,6 +73,7 @@ public class User {
 
     public void removeWatchedAccount(SteamAccount account) {
         this.watchedAccounts.remove(account);
+        account.getWatchingUsers().remove(this);
     }
 
     @Override

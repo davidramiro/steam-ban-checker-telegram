@@ -125,4 +125,11 @@ public class SteamService {
     public List<SteamAccount> findUnpublishedSteamAccounts() {
         return this.steamAccountRepo.findSteamAccountByIsPublishedFalse();
     }
+
+    public void checkIfOrphanedAndDelete(long steamId) {
+        SteamAccount acc = this.steamAccountRepo.findSteamAccountBySteamIdEquals(steamId);
+        if (acc.getWatchingUsers().isEmpty()) {
+            this.steamAccountRepo.delete(acc);
+        }
+    }
 }
