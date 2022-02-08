@@ -61,11 +61,15 @@ public class TelegramService {
                     user = this.userService.getUserByTelegramId(update.message().chat().id());
                 }
 
+                LOGGER.info("New incoming account request from {} - {}: {}", user.getName(),
+                        user.getTelegramId(), update.message().text());
                 SteamAccount acc = checkBanFromMessage(update);
                 if (acc == null) {
                     continue;
                 }
                 int newSize = addAccountToUser(user.getId(), acc.getId());
+                LOGGER.info("User {} - {} is now tracking {} accounts.", user.getName(),
+                        user.getTelegramId(), newSize);
                 bot.execute(new SendMessage(user.getTelegramId(), String.format("Currently watched accounts: %d", newSize)));
             }
 
@@ -119,7 +123,9 @@ public class TelegramService {
         LOGGER.info("Scheduled notification polling");
         List<SteamAccount> unpublishedAccounts = this.steamService.findUnpublishedSteamAccounts();
         unpublishedAccounts.forEach(acc -> {
+            LOGGER.info("New ban detected for {}.", acc.getSteamId());
             acc.getWatchingUsers().forEach(user -> {
+                LOGGER.info("Notifying Telegram User {} - {}", user.getName(), user.getTelegramId());
                 String addedDate = acc.getDateAdded().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
                 String bannedDate = acc.getLastBan().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
                 String accInfo = SteamApiUtils.getInfoFromSteamId(acc.getSteamId(), this.steamApiKey);
@@ -133,9 +139,9 @@ public class TelegramService {
     }
 
     private User saveUserFromMessage(Update update) {
-
         String name = update.message().chat().firstName() == null ?
                 update.message().chat().username() : update.message().chat().firstName();
+        LOGGER.info("Creating new User - Name: {}, Telegram ID: {}", name, update.message().chat().id());
         return this.userService.saveUser(new User(update.message().chat().id(), name));
     }
 
