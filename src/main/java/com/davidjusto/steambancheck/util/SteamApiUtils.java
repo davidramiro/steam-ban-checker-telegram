@@ -23,7 +23,8 @@ public class SteamApiUtils {
     private static final String STEAM_VANITY_ID_API_URL = "ResolveVanityURL/v0001/?key=%s&vanityurl=%s";
     private static final String STEAM_INFO_API_URL = "GetPlayerSummaries/v0002/?key=%s&steamids=%s";
 
-    private SteamApiUtils() {}
+    private SteamApiUtils() {
+    }
 
     public static JsonObject getBanInfoJson(String steamIds, String steamApiKey) {
         String json = REST_TEMPLATE.getForObject(String.format(STEAM_API_BASE_URL + STEAM_BAN_API_URL,
@@ -32,44 +33,52 @@ public class SteamApiUtils {
     }
 
     public static Long parseSteamIdFromInput(String input, String apiKey) {
-        if (input.toLowerCase().contains("steamcommunity")) {
+        Long parsedId = 0L;
 
+        if (input.toLowerCase().contains("steamcommunity")) {
             URI uri = null;
             try {
                 uri = new URI(input);
+                if (input.toLowerCase().contains("/profiles/")) {
+                    String[] segments = uri.getPath().split("/");
+                    String idStr = segments[segments.length - 1];
+                    parsedId = Long.parseLong(idStr);
+                }
+
+                if (input.toLowerCase().contains("/id/")) {
+                    String[] segments = uri.getPath().split("/");
+                    String idStr = segments[segments.length - 1];
+                    parsedId = getSteamIdFromVanityUrl(idStr, apiKey);
+                }
             } catch (URISyntaxException use) {
                 LOGGER.error("Malformed URL input: {}", input);
                 return -1L;
-            }
-
-            if (input.toLowerCase().contains("/profiles/")) {
-                String[] segments = uri.getPath().split("/");
-                String idStr = segments[segments.length-1];
-                return Long.parseLong(idStr);
-            }
-
-            if (input.toLowerCase().contains("/id/")) {
-                String[] segments = uri.getPath().split("/");
-                String idStr = segments[segments.length-1];
-                return getSteamIdFromVanityUrl(idStr, apiKey);
+            } catch (NumberFormatException nfe) {
+                LOGGER.error("Unexpected non-numeric part in URL: {}", input);
+                return -1L;
             }
         } else {
             try {
-                return Long.parseLong(input);
+                parsedId = Long.parseLong(input);
             } catch (NumberFormatException nfe) {
                 LOGGER.error("Could not parse 64bit Long from non-URL: {}", input);
                 return -1L;
             }
         }
 
-        LOGGER.error("Unknown parser error: {}", input);
-        return -1L;
+        if (parsedId.toString().matches("^[0-9]{17}$")) {
+            return parsedId;
+        } else {
+            LOGGER.error("Unknown parser error: {}", input);
+            return -1L;
+        }
+
     }
 
     private static Long getSteamIdFromVanityUrl(String vanityUrl, String steamApiKey) {
         String json = REST_TEMPLATE.getForObject(
                 String.format(STEAM_API_BASE_URL + STEAM_VANITY_ID_API_URL, steamApiKey, vanityUrl), String.class);
-        JsonObject response =  new Gson().fromJson(json, JsonObject.class)
+        JsonObject response = new Gson().fromJson(json, JsonObject.class)
                 .get("response").getAsJsonObject();
         if (response.get("success").getAsInt() == 1) {
             return response.get("steamid").getAsLong();
@@ -81,7 +90,7 @@ public class SteamApiUtils {
     public static String getInfoFromSteamId(Long steamId, String steamApiKey) {
         String json = REST_TEMPLATE.getForObject(String.format(STEAM_API_BASE_URL + STEAM_INFO_API_URL,
                 steamApiKey, steamId), String.class);
-        JsonArray playerInfos =  new Gson().fromJson(json, JsonObject.class)
+        JsonArray playerInfos = new Gson().fromJson(json, JsonObject.class)
                 .get("response").getAsJsonObject()
                 .get("players").getAsJsonArray();
         if (playerInfos.size() != 1) {

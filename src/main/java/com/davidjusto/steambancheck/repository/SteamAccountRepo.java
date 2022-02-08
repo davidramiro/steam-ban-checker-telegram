@@ -12,5 +12,6 @@ import java.util.List;
 @Repository
 public interface SteamAccountRepo extends JpaRepository<SteamAccount, Long> {
     SteamAccount findSteamAccountBySteamIdEquals(Long id);
+
     List<SteamAccount> findSteamAccountByIsPublishedFalse();
 }

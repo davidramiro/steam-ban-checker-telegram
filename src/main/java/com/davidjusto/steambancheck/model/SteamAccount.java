@@ -26,7 +26,8 @@ public class SteamAccount {
     @ManyToMany(mappedBy = "watchedAccounts", fetch = FetchType.EAGER)
     private Set<User> watchingUsers = new HashSet<>();
 
-    public SteamAccount() {}
+    public SteamAccount() {
+    }
 
     public SteamAccount(Long steamId) {
         this.steamId = steamId;

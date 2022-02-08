@@ -3,8 +3,8 @@ package com.davidjusto.steambancheck.service;
 import com.davidjusto.steambancheck.model.SteamAccount;
 import com.davidjusto.steambancheck.repository.SteamAccountRepo;
 import com.google.common.collect.Lists;
-import com.google.gson.*;
-
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +27,6 @@ import static com.davidjusto.steambancheck.util.SteamApiUtils.getBanInfoJson;
 public class SteamService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SteamService.class);
-
 
     private final String steamApiKey;
     private final SteamAccountRepo steamAccountRepo;
@@ -57,7 +56,7 @@ public class SteamService {
         return true;
     }
 
-    @Scheduled(fixedRateString ="${polling.interval.ms}", initialDelay=10000)
+    @Scheduled(fixedRateString = "${polling.interval.ms}", initialDelay = 10000)
     public void scheduledAccountPolling() {
         LOGGER.info("Scheduled polling of tracked steam accounts");
         List<SteamAccount> allAccounts = this.steamAccountRepo.findAll();
@@ -102,6 +101,7 @@ public class SteamService {
     public SteamAccount getSteamAccountBySteamId(Long id) {
         return this.steamAccountRepo.findSteamAccountBySteamIdEquals(id);
     }
+
     public SteamAccount getSteamAccountById(Long id) {
         return this.steamAccountRepo.findById(id).orElse(null);
     }

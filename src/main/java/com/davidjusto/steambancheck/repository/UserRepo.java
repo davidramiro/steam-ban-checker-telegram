@@ -10,5 +10,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface UserRepo extends JpaRepository<User, Long> {
     User findUserByTelegramIdEquals(Long id);
+
     boolean existsByTelegramIdEquals(Long id);
 }
