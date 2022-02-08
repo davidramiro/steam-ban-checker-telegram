@@ -57,7 +57,7 @@ public class SteamService {
         return true;
     }
 
-    @Scheduled(fixedRate = 20000)
+    @Scheduled(fixedRateString ="${polling.interval.ms}", initialDelay=10000)
     public void scheduledAccountPolling() {
         LOGGER.info("Scheduled polling of tracked steam accounts");
         List<SteamAccount> allAccounts = this.steamAccountRepo.findAll();

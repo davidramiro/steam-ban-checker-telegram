@@ -114,7 +114,7 @@ public class TelegramService {
         return null;
     }
 
-    @Scheduled(fixedRateString ="${polling.interval.ms}", initialDelay=10000)
+    @Scheduled(fixedRateString ="${polling.interval.ms}", initialDelay=60000)
     public void scheduledAccountPolling() {
         LOGGER.info("Scheduled notification polling");
         List<SteamAccount> unpublishedAccounts = this.steamService.findUnpublishedSteamAccounts();
