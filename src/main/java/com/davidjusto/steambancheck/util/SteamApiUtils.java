@@ -32,6 +32,12 @@ public class SteamApiUtils {
         return new Gson().fromJson(json, JsonObject.class);
     }
 
+    public static JsonObject getAccountInfoJson(String steamIds, String steamApiKey) {
+        String json = REST_TEMPLATE.getForObject(String.format(STEAM_API_BASE_URL + STEAM_INFO_API_URL,
+                steamApiKey, steamIds), String.class);
+        return new Gson().fromJson(json, JsonObject.class).get("response").getAsJsonObject();
+    }
+
     public static Long parseSteamIdFromInput(String input, String apiKey) {
         Long parsedId = 0L;
 
@@ -87,11 +93,8 @@ public class SteamApiUtils {
         }
     }
 
-    public static String getInfoFromSteamId(Long steamId, String steamApiKey) {
-        String json = REST_TEMPLATE.getForObject(String.format(STEAM_API_BASE_URL + STEAM_INFO_API_URL,
-                steamApiKey, steamId), String.class);
-        JsonArray playerInfos = new Gson().fromJson(json, JsonObject.class)
-                .get("response").getAsJsonObject()
+    public static String getInfoText(Long steamId, String steamApiKey) {
+        JsonArray playerInfos = getAccountInfoJson(String.valueOf(steamId), steamApiKey)
                 .get("players").getAsJsonArray();
         if (playerInfos.size() != 1) {
             throw new SteamApiException();

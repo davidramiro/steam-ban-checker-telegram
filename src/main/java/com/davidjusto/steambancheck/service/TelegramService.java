@@ -5,7 +5,6 @@ import com.davidjusto.steambancheck.model.User;
 import com.davidjusto.steambancheck.util.SteamApiUtils;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
-import com.pengrad.telegrambot.model.Chat;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.request.SendMessage;
 import org.slf4j.Logger;
@@ -33,14 +32,22 @@ public class TelegramService {
     private final SteamService steamService;
     private final UserService userService;
     private final String steamApiKey;
+    private final SteamApiService steamApiService;
+    private final String baseUrl;
+    private final boolean usesWebpage;
 
     @Autowired
     public TelegramService(@Value("${telegram.bot.token}") String token,
                            @Value("${steam.api.key}") String apiKey,
-                           SteamService steamService, UserService userService) {
+                           @Value("${app.base.url}") String baseUrl,
+                           @Value("${app.enable.webpage}") boolean usesWebpage,
+                           SteamService steamService, UserService userService, SteamApiService steamApiService) {
         this.userService = userService;
         this.steamApiKey = apiKey;
         this.steamService = steamService;
+        this.steamApiService = steamApiService;
+        this.baseUrl = baseUrl;
+        this.usesWebpage = usesWebpage;
         bot = new TelegramBot(token);
         this.setUpListener();
     }
@@ -58,7 +65,7 @@ public class TelegramService {
                 // check if user is known
                 User user;
                 if (!userService.checkIfUserExists(chatId)) {
-                    user = saveUserFromMessage(update.message().chat());
+                    user = this.userService.saveUserFromMessage(update.message().chat());
                 } else {
                     user = this.userService.getUserByTelegramId(update.message().chat().id());
                 }
@@ -84,7 +91,7 @@ public class TelegramService {
                     user.getTelegramId(), steamIdInput);
             SteamAccount acc = checkAndAddSteamAccount(user.getTelegramId(), steamId);
             if (acc != null) {
-                int newSize = addAccountToUser(user.getId(), acc.getId());
+                int newSize = this.userService.addAccountToUser(user.getId(), acc.getId());
                 LOGGER.info("User {} - {} is now tracking {} accounts.", user.getName(),
                         user.getTelegramId(), newSize);
                 bot.execute(new SendMessage(user.getTelegramId(), String.format("Currently watched accounts: %d", newSize)));
@@ -108,7 +115,16 @@ public class TelegramService {
         }
 
         if (command.toLowerCase().contains("showtracked")) {
-            this.showTrackedAccountsForUser(user);
+            if (this.usesWebpage) {
+                StringBuilder url = new StringBuilder(baseUrl);
+                url.append("/tracked?telegramId=");
+                url.append(user.getTelegramId());
+                bot.execute(new SendMessage(user.getTelegramId(), "Check your tracked accounts by visiting " +
+                        url));
+            } else {
+                showTrackedAccountsForUser(user);
+            }
+
             return;
         }
 
@@ -125,7 +141,6 @@ public class TelegramService {
                 } else {
                     this.removeAccountTrackingFromUser(user, steamId);
                 }
-
             }
 
             return;
@@ -152,7 +167,7 @@ public class TelegramService {
 
     private void showTrackedAccountsForUser(User user) {
         user.getWatchedAccounts().forEach(acc -> {
-            String accountInfo = SteamApiUtils.getInfoFromSteamId(acc.getSteamId(), this.steamApiKey);
+            String accountInfo = SteamApiUtils.getInfoText(acc.getSteamId(), this.steamApiKey);
             String added = acc.getDateAdded().format(DateTimeFormatter.ofPattern(DATE_FORMAT));
             String banned = acc.getLastBan() != null ?
                     acc.getLastBan().format(DateTimeFormatter.ofPattern(DATE_FORMAT)) : "Not banned";
@@ -164,7 +179,7 @@ public class TelegramService {
     private SteamAccount checkAndAddSteamAccount(long chatId, long steamId) {
         try {
 
-            boolean apiReturnStatus = this.steamService.checkBan(new SteamAccount(steamId));
+            boolean apiReturnStatus = this.steamApiService.checkBan(new SteamAccount(steamId));
 
             if (!apiReturnStatus) {
                 LOGGER.error("Steam API error on ID {}", steamId);
@@ -173,7 +188,7 @@ public class TelegramService {
             }
 
             SteamAccount returnedAccount = steamService.getSteamAccountBySteamId(steamId);
-            String accountInfo = SteamApiUtils.getInfoFromSteamId(steamId, this.steamApiKey);
+            String accountInfo = SteamApiUtils.getInfoText(steamId, this.steamApiKey);
 
             bot.execute(new SendMessage(chatId, String.format("Added account:%n%s", accountInfo)));
 
@@ -189,14 +204,14 @@ public class TelegramService {
     @Scheduled(fixedRateString = "${polling.interval.ms}", initialDelay = 60000)
     public void scheduledAccountPolling() {
         LOGGER.info("Scheduled notification polling");
-        List<SteamAccount> unpublishedAccounts = this.steamService.findUnpublishedSteamAccounts();
+        List<SteamAccount> unpublishedAccounts = this.steamService.getUnpublishedSteamAccounts();
         unpublishedAccounts.forEach(acc -> {
             LOGGER.info("New ban detected for {}.", acc.getSteamId());
             acc.getWatchingUsers().forEach(user -> {
                 LOGGER.info("Notifying Telegram User {} - {}", user.getName(), user.getTelegramId());
                 String addedDate = acc.getDateAdded().format(DateTimeFormatter.ofPattern(DATE_FORMAT));
                 String bannedDate = acc.getLastBan().format(DateTimeFormatter.ofPattern(DATE_FORMAT));
-                String accInfo = SteamApiUtils.getInfoFromSteamId(acc.getSteamId(), this.steamApiKey);
+                String accInfo = SteamApiUtils.getInfoText(acc.getSteamId(), this.steamApiKey);
                 bot.execute(new SendMessage(user.getTelegramId(),
                         String.format("New ban detected!%n%s%n%nDate added: %s%nDate banned: %s",
                                 accInfo, addedDate, bannedDate)));
@@ -206,17 +221,5 @@ public class TelegramService {
         });
     }
 
-    private User saveUserFromMessage(Chat chat) {
-        String name = chat.firstName() == null ? chat.username() : chat.firstName();
-        LOGGER.info("Creating new User - Name: {}, Telegram ID: {}", name, chat.id());
-        return this.userService.saveUser(new User(chat.id(), name));
-    }
 
-    private int addAccountToUser(Long userId, Long accountId) {
-        User user = this.userService.getUserById(userId);
-        SteamAccount account = this.steamService.getSteamAccountById(accountId);
-        user.addWatchedAccount(account);
-        user = this.userService.updateUser(user);
-        return user.getWatchedAccounts().size();
-    }
 }

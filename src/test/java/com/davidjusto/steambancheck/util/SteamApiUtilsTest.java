@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * @author davidramiro
  */
 @SpringBootTest
-public class SteamApiUtilsTest {
+class SteamApiUtilsTest {
 
     private static final Long GABEN_STEAMID = 76561197960287930L;
 

@@ -25,6 +25,10 @@ public class SteamAccount {
     private Boolean isPublished = true;
     @ManyToMany(mappedBy = "watchedAccounts", fetch = FetchType.EAGER)
     private Set<User> watchingUsers = new HashSet<>();
+    @Transient
+    private String name;
+    @Transient
+    private String imgUrl;
 
     public SteamAccount() {
     }
@@ -95,6 +99,22 @@ public class SteamAccount {
 
     public void setDateAdded(LocalDate dateAdded) {
         this.dateAdded = dateAdded;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getImgUrl() {
+        return imgUrl;
+    }
+
+    public void setImgUrl(String imgUrl) {
+        this.imgUrl = imgUrl;
     }
 
     @Override
