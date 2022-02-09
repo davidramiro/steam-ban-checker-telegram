@@ -49,7 +49,7 @@ public class SteamApiService {
             JsonArray responsePlayers = resp.getAsJsonArray("players");
             responsePlayers.forEach(player -> {
                 JsonObject playerObject = player.getAsJsonObject();
-                SteamAccount acc = this.steamService.getSteamAccountBySteamId(playerObject.get("steamid").getAsLong());
+                SteamAccount acc = this.steamService.getSteamAccountBySteamId(playerObject.get("SteamId").getAsLong());
                 LOGGER.info("Checking account {}", acc.getSteamId());
                 boolean newVacBanStatus = playerObject.get("NumberOfVACBans").getAsInt() > 0;
                 boolean newGameBanStatus = playerObject.get("NumberOfGameBans").getAsInt() > 0;
